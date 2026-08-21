@@ -6,6 +6,7 @@ import {
 } from "@/lib/ingest/adapters/leak_intelligence";
 import { adaptUntilPhishEvent } from "@/lib/ingest/adapters/untilphish";
 import { processGraphEvent } from "@/lib/ingest/processor";
+import { authenticateIngestRequest } from "@/lib/ingest/auth";
 import { SOURCE_SYSTEMS } from "@/lib/domain/enums";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,13 @@ type RouteContext = { params: Promise<{ source: string }> };
 export async function POST(req: NextRequest, ctx: RouteContext) {
   const { source } = await ctx.params;
   const receivedAt = new Date().toISOString();
+
+  // Ingestion writes straight into the graph, so it is authenticated before
+  // anything else — including before the body is parsed.
+  const auth = await authenticateIngestRequest(req.headers, source);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -42,7 +50,10 @@ export async function POST(req: NextRequest, ctx: RouteContext) {
         break;
       }
       case "until-phish": {
+        // The authenticated key already identifies the tenant; the header is
+        // kept as a fallback only for keys minted before scoping existed.
         const tenantId =
+          auth.tenantId ??
           req.headers.get("x-tenant-id") ??
           (body.tenant_id as string | undefined);
         if (!tenantId) {

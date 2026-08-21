@@ -29,10 +29,9 @@ function slugify(name: string): string {
  * (SHA-256), not the raw key — the raw value is returned exactly once in
  * this response and is not recoverable afterwards.
  *
- * IMPORTANT — known gap, not fixed by this change: /api/v1/ingest/[source]
- * does not currently validate these keys against anything. This endpoint
- * makes the ingestionApiKeys table usable and populated, but wiring actual
- * request authentication into the ingest route is separate follow-up work.
+ * These keys are enforced by /api/v1/ingest/[source] via
+ * src/lib/ingest/auth.ts: each key authenticates exactly one source system
+ * and carries the tenant identity for the events it submits.
  */
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
